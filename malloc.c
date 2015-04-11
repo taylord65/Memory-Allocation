@@ -4,7 +4,7 @@
 #include <stdint.h>
 #include "malloc.h"
 
-//int _policy = FIRST_FIT;
+int _policy = FIRST_FIT;
 int uninitialized = 1;
 
 char* heap_bottom;
@@ -39,9 +39,11 @@ void displayMemorySegment(void* pointer){
 
 	int size = *((int*)ptr);
 	printf("Size: %d\n",size);
-	ptr += (LENGTH_TAG + size);
+	ptr += (LENGTH_TAG + size + LENGTH_TAG + ALLOCATION_TAG);
 
-	printf("Heap Bottom: %d Heap Top: %d\n",(int)heap_bottom, (int)heap_top );
+	printf("End Address %d\n",(int)ptr);
+
+	printf("Heap Bottom: %d Heap Top: %d\n\n",(int)heap_bottom, (int)heap_top );
 }
 
 
@@ -74,13 +76,17 @@ void* my_malloc(int size){
 		return (void*)heap_bottom;
 	}
 
-/*	if(_policy==FIRST_FIT){
+	if(_policy==FIRST_FIT){
 		return_pointer = allocFirstFit(size);
+		return return_pointer;
+
 	}
 	else{
 		return_pointer = allocBestFit(size);
+		return return_pointer;	
+		printf("WRISTWRISTWRIST\n");
 	}
-*/
+
 	printf("Error in memory allocation\n");
 	return return_pointer;
 
@@ -94,13 +100,88 @@ void my_free(void *ptr)
 
 void my_mallopt(int policy)
 {
-	//_policy = policy;
+	_policy = policy;
 }
 
 void my_mallinfo()
 {
-	printf("Total bytes allocated for memory %d\n Total bytes allocated for meta information %d\n Total free space %d\n", TOTAL_ALLOCATION, TOTAL_META_ALLOCATION, TOTAL_FREE_SPACE);
+	printf("my_mallinfo statistics\n");
+	printf("Total bytes allocated for memory %d\nTotal bytes allocated for meta information %d\nTotal free space %d\n", TOTAL_ALLOCATION, TOTAL_META_ALLOCATION, TOTAL_FREE_SPACE);
 	//printf("Largest contiguous free space %d\n");
+
+}
+
+void* allocBestFit(int size){
+	int allocated_segment = 1;
+	int segment_size_in_heap;
+	char* pointer = heap_bottom; 
+
+	char* best_fit_address=NULL;
+	int best_current_difference = -1;
+
+	while(pointer <= heap_top){
+
+		segment_size_in_heap = *((int*)(pointer + ALLOCATION_TAG));
+
+		if(*pointer == allocated_segment || segment_size_in_heap < size){
+			pointer += segment_size_in_heap + 2*ALLOCATION_TAG + 2*LENGTH_TAG;
+		}
+		else{
+
+			if(best_current_difference == -1){
+				//Set the first free segment's difference to the the best_current_difference
+				best_current_difference = segment_size_in_heap - size;
+				best_fit_address = pointer;	
+				pointer += segment_size_in_heap + 2*ALLOCATION_TAG + 2*LENGTH_TAG;
+
+			}
+			else if(segment_size_in_heap - size < best_current_difference){
+				best_current_difference = segment_size_in_heap - size;
+				best_fit_address = pointer;	
+				pointer += segment_size_in_heap + 2*ALLOCATION_TAG + 2*LENGTH_TAG;
+
+			}
+
+		}
+	}
+
+	if(best_current_difference==0){
+		write_to_heap(best_fit_address,1,size);
+
+		TOTAL_FREE_SPACE -= size;
+		TOTAL_ALLOCATION += size;
+		return best_fit_address;
+	}
+	else if(best_current_difference > MIN_SPLIT){
+		write_to_heap(best_fit_address,1,size);
+		displayMemorySegment(best_fit_address);
+		best_fit_address += 2*ALLOCATION_TAG + 2*LENGTH_TAG + size; 
+		write_to_heap(best_fit_address,0,best_current_difference-(ALLOCATION_TAG+LENGTH_TAG));
+		displayMemorySegment(best_fit_address);
+
+		TOTAL_ALLOCATION += size;
+		TOTAL_META_ALLOCATION += 2*ALLOCATION_TAG + 2*LENGTH_TAG;
+		TOTAL_FREE_SPACE -= size;
+		return best_fit_address;
+	}
+	else {
+
+	printf("Extend the heap\n\n");
+	void *previous_heap_top = sbrk(size + 2*ALLOCATION_TAG + 2*LENGTH_TAG + EXTRA_HEAP_SPACE+ 2*ALLOCATION_TAG + 2*LENGTH_TAG);
+	heap_top += (size + 2*LENGTH_TAG + 2*ALLOCATION_TAG + EXTRA_HEAP_SPACE+ 2*ALLOCATION_TAG + 2*LENGTH_TAG);
+
+	write_to_heap(previous_heap_top+ 2*ALLOCATION_TAG + 2*LENGTH_TAG,1,size);
+	displayMemorySegment(previous_heap_top+ 2*ALLOCATION_TAG + 2*LENGTH_TAG);
+	write_to_heap(previous_heap_top + size + 2*ALLOCATION_TAG + 2*LENGTH_TAG+ 2*ALLOCATION_TAG + 2*LENGTH_TAG,0,EXTRA_HEAP_SPACE); 
+	displayMemorySegment(previous_heap_top + size + 2*ALLOCATION_TAG + 2*LENGTH_TAG+ 2*ALLOCATION_TAG + 2*LENGTH_TAG);
+
+	TOTAL_ALLOCATION += size;
+	TOTAL_META_ALLOCATION += 2*(2*ALLOCATION_TAG + 2*LENGTH_TAG);
+	TOTAL_FREE_SPACE += EXTRA_HEAP_SPACE;
+
+	return (void *)previous_heap_top;	
+
+	}
 
 }
 
@@ -109,7 +190,7 @@ void* allocFirstFit(int size){
 	int size_difference;
 	int allocated_segment = 1;
 	void* return_pointer = NULL;
-	char* pointer = heap_bottom; //Initialize pointer to heap bottom
+	char* pointer = heap_bottom; 
 
 	while(pointer <= heap_top){
 
@@ -147,20 +228,18 @@ void* allocFirstFit(int size){
 		}
 	}
 	//Extend the heap
-	void *previous_heap_top = sbrk(size + 2*ALLOCATION_TAG + 2*LENGTH_TAG + EXTRA_HEAP_SPACE);
-	heap_top += (size + 2*LENGTH_TAG + 2*ALLOCATION_TAG + EXTRA_HEAP_SPACE);
+	printf("Extend the heap\n\n");
+	void *previous_heap_top = sbrk(size + 2*ALLOCATION_TAG + 2*LENGTH_TAG + EXTRA_HEAP_SPACE+ 2*ALLOCATION_TAG + 2*LENGTH_TAG);
+	heap_top += (size + 2*LENGTH_TAG + 2*ALLOCATION_TAG + EXTRA_HEAP_SPACE+ 2*ALLOCATION_TAG + 2*LENGTH_TAG);
 
-	write_to_heap(previous_heap_top,1,size);
-	write_to_heap(previous_heap_top + size + 2*ALLOCATION_TAG + 2*LENGTH_TAG,0,EXTRA_HEAP_SPACE); 
+	write_to_heap(previous_heap_top + 2*ALLOCATION_TAG + 2*LENGTH_TAG,1,size);
+	displayMemorySegment(previous_heap_top + 2*ALLOCATION_TAG + 2*LENGTH_TAG);
+	write_to_heap(previous_heap_top + size + 2*ALLOCATION_TAG + 2*LENGTH_TAG + 2*ALLOCATION_TAG + 2*LENGTH_TAG,0,EXTRA_HEAP_SPACE); 
+	displayMemorySegment(previous_heap_top + size + 2*ALLOCATION_TAG + 2*LENGTH_TAG + 2*ALLOCATION_TAG + 2*LENGTH_TAG);
 
 	TOTAL_ALLOCATION += size;
 	TOTAL_META_ALLOCATION += 2*(2*ALLOCATION_TAG + 2*LENGTH_TAG);
 	TOTAL_FREE_SPACE += EXTRA_HEAP_SPACE;
 
-	return (void *)previous_heap_top;
-	
-}
-
-void* allocBestFit(int size){
-	
+	return (void *)previous_heap_top;	
 }

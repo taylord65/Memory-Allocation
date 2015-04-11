@@ -5,6 +5,8 @@
 #define LENGTH_TAG 4
 #define EXTRA_HEAP_SPACE 4000 
 #define MIN_SPLIT 6
+#define FIRST_FIT 1
+#define BEST_FIT 2
 
 
 void* my_malloc(int size);
