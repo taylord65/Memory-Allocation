@@ -30,7 +30,7 @@ void write_to_heap(void* start_address, char allocation, int size){
 void displayMemorySegment(void* pointer){
 	void *ptr = pointer;
 
-	printf("Start Address %d\n",(int)ptr);
+	printf("Start Address: %d\n",(int)ptr);
 
 	char allocation = *((char*)ptr);
 	printf("Allocation: %d\n", allocation);
@@ -40,19 +40,22 @@ void displayMemorySegment(void* pointer){
 	printf("Size: %d\n",size);
 	ptr += (LENGTH_TAG + size + LENGTH_TAG + ALLOCATION_TAG);
 
-	printf("End Address %d\n",(int)ptr);
+	printf("End Address: %d\n",(int)ptr);
 
 	printf("Heap Bottom: %d Heap Top: %d\n\n",(int)heap_bottom, (int)heap_top );
 }
 
 
-void* my_malloc(int size){
+void* my_malloc(int size){	
 
 	void* return_pointer = NULL;
 
+	if(TOTAL_FREE_SPACE+size > MAX_MEMORY){
+		printf("Not enough room in memory\n");
+		return return_pointer;
+	}
+
 	if(uninitialized){
-		//There is no room in the heap
-		//sbrk will return void pointer to start of newly allocated space, cast to char pointer to store in heap_bottom 
 
 		heap_bottom = (char*)sbrk(size + 2*ALLOCATION_TAG + 2*LENGTH_TAG + EXTRA_HEAP_SPACE + 2*ALLOCATION_TAG + 2*LENGTH_TAG);
 
@@ -76,12 +79,12 @@ void* my_malloc(int size){
 
 	if(_policy==FIRST_FIT){
 		return_pointer = allocFirstFit(size);
-		return return_pointer;
+		return (void *)return_pointer;
 
 	}
 	else{
 		return_pointer = allocBestFit(size);
-		return return_pointer;	
+		return (void *)return_pointer;	
 	}
 
 	printf("Error in memory allocation\n");
@@ -92,7 +95,67 @@ void* my_malloc(int size){
 
 void my_free(void *ptr)
 {
-	
+	if(ptr==NULL){
+		return;
+	}
+
+	char allocation = *((char*)ptr);
+	ptr += ALLOCATION_TAG;
+	int size1 = *((int*)ptr);
+
+	if(allocation==1){
+		printf("This segment is allocated");
+	}
+	else{
+		ptr -= ALLOCATION_TAG;
+		*((char*)ptr) = 0;
+		ptr += ALLOCATION_TAG + LENGTH_TAG + size1 + LENGTH_TAG;
+		*((char*)ptr) = 0;
+
+		ptr += ALLOCATION_TAG;
+
+		char next_allocation = *((char*)ptr);
+
+		if(next_allocation==0){
+
+			//MERGE THE NEXT SEGMENT
+			ptr += ALLOCATION_TAG;
+			int size2 = *((int*)ptr);
+			ptr += LENGTH_TAG + size2;
+			*((int*)ptr) = size1 + size2 + 2*ALLOCATION_TAG + 2*LENGTH_TAG;//in the second length tag store the new length
+			ptr += LENGTH_TAG;
+			*((char*)ptr) = 0;
+
+			ptr-= (LENGTH_TAG + size2 + 2*ALLOCATION_TAG + 2*LENGTH_TAG + size1 + LENGTH_TAG);
+			*((int*)ptr) = size1 + size2 + 2*ALLOCATION_TAG + 2*LENGTH_TAG; //new length in the beginning
+			ptr -= ALLOCATION_TAG;
+
+			TOTAL_FREE_SPACE += 2*ALLOCATION_TAG + 2*LENGTH_TAG;
+		}
+
+		ptr -= ALLOCATION_TAG;
+
+		char previous_allocation = *((char*)ptr);
+
+		if(previous_allocation==0){
+			//MERGE PREVIOUS SEGMENT
+
+			ptr-= LENGTH_TAG;
+			int size0 = *((int*)ptr);
+			ptr -= (size0 + LENGTH_TAG + ALLOCATION_TAG);
+			*((char*)ptr) = 0;
+
+			ptr += ALLOCATION_TAG;
+			*((int*)ptr) = size0 + size1 + 2*ALLOCATION_TAG + 2*LENGTH_TAG;
+			ptr += LENGTH_TAG + size0 + size1 + 2*ALLOCATION_TAG + 2*LENGTH_TAG;
+			*((int*)ptr) = size0 + size1 + 2*ALLOCATION_TAG + 2*LENGTH_TAG;
+
+			TOTAL_FREE_SPACE += 2*ALLOCATION_TAG + 2*LENGTH_TAG;
+
+		}
+
+	}
+
 }
 
 void my_mallopt(int policy)
@@ -105,7 +168,6 @@ void my_mallinfo()
 	printf("my_mallinfo statistics\n");
 	printf("Total bytes allocated for memory %d\nTotal free space %d\n", TOTAL_ALLOCATION,TOTAL_FREE_SPACE);
 	//printf("Largest contiguous free space %d\n");
-
 }
 
 void* allocBestFit(int size){
@@ -129,15 +191,13 @@ void* allocBestFit(int size){
 				//Set the first free segment's difference to the the best_current_difference
 				best_current_difference = segment_size_in_heap - size;
 				best_fit_address = pointer;	
-				pointer += segment_size_in_heap + 2*ALLOCATION_TAG + 2*LENGTH_TAG;
-
 			}
 			else if(segment_size_in_heap - size < best_current_difference){
 				best_current_difference = segment_size_in_heap - size;
 				best_fit_address = pointer;	
-				pointer += segment_size_in_heap + 2*ALLOCATION_TAG + 2*LENGTH_TAG;
-
 			}
+
+			pointer += segment_size_in_heap + 2*ALLOCATION_TAG + 2*LENGTH_TAG;
 
 		}
 	}
@@ -161,8 +221,7 @@ void* allocBestFit(int size){
 		return best_fit_address;
 	}
 	else {
-
-	printf("Extend the heap\n\n");
+	printf("##################Extend the heap##################\n\n");
 	void *previous_heap_top = sbrk(size + 2*ALLOCATION_TAG + 2*LENGTH_TAG + EXTRA_HEAP_SPACE + 2*ALLOCATION_TAG + 2*LENGTH_TAG);
 	heap_top += (size + 2*LENGTH_TAG + 2*ALLOCATION_TAG + EXTRA_HEAP_SPACE + 2*ALLOCATION_TAG + 2*LENGTH_TAG);
 
@@ -175,9 +234,7 @@ void* allocBestFit(int size){
 	TOTAL_FREE_SPACE += EXTRA_HEAP_SPACE;
 
 	return (void *)previous_heap_top;	
-
 	}
-
 }
 
 void* allocFirstFit(int size){
@@ -222,7 +279,7 @@ void* allocFirstFit(int size){
 		}
 	}
 	//Extend the heap
-	printf("Extend the heap\n\n");
+	printf("##################Extend the heap##################\n\n");
 	void *previous_heap_top = sbrk(size + 2*ALLOCATION_TAG + 2*LENGTH_TAG + EXTRA_HEAP_SPACE + 2*ALLOCATION_TAG + 2*LENGTH_TAG);
 	heap_top += (size + 2*LENGTH_TAG + 2*ALLOCATION_TAG + EXTRA_HEAP_SPACE+ 2*ALLOCATION_TAG + 2*LENGTH_TAG);
 
