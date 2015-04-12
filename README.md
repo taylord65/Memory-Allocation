@@ -9,10 +9,10 @@ A size difference needs to be larger than the minimum size so a free space segme
 
 Passing a size parameter to my_malloc will write it to the heap, the command prompt will display statistics about the location of the segment and size. 
 
-From running malloc_test.c you can see from the display statistics that all the segments fit together. The start addresses and end addresses are displayed. 
+Run make to recieve the program file Dotsikas_Taylor_malloc. When you execute ./Dotsikas_Taylor_malloc you can see from the display statistics that all the segments fit together. The start addresses and end addresses are displayed. 
 
 In the main function, if the policy is set to FIRST_FIT, the 200 size segment will be written after the 3600 segment. If the policy is BEST_FIT the 200 size segment will be placed after the 3700 segment. This confirms that both policies perform correctly. 
 
 my_mallinfo() displays the required statistics. 
 
-The my_free() function can free a segment and also merge the previous, next, or both to it if they are free segments. 
+The my_free() function can free a segment and also merge adjacent segments if they are free.

@@ -135,6 +135,8 @@ void my_free(void *ptr)
 
 		ptr -= ALLOCATION_TAG;
 
+		displayMemorySegment(ptr);
+
 		char previous_allocation = *((char*)ptr);
 
 		if(previous_allocation==0){
@@ -165,9 +167,34 @@ void my_mallopt(int policy)
 
 void my_mallinfo()
 {
+	int allocated_segment = 1;
+	char* pointer = heap_bottom;
+	int segment_size_in_heap;
+	int largest_contiguous_free_space_size = -1;
+
+	while(pointer <= heap_top){
+
+		segment_size_in_heap = *((int*)(pointer + ALLOCATION_TAG));
+
+		if(*pointer == allocated_segment){
+			pointer += segment_size_in_heap + 2*ALLOCATION_TAG + 2*LENGTH_TAG;
+		}
+		else{
+
+			if(largest_contiguous_free_space_size == -1){
+				largest_contiguous_free_space_size = segment_size_in_heap;
+			}
+			else if(segment_size_in_heap > largest_contiguous_free_space_size){
+				largest_contiguous_free_space_size = segment_size_in_heap;
+			}
+
+			pointer += segment_size_in_heap + 2*ALLOCATION_TAG + 2*LENGTH_TAG;
+
+		}
+	}
 	printf("my_mallinfo statistics\n");
-	printf("Total bytes allocated for memory %d\nTotal free space %d\n", TOTAL_ALLOCATION,TOTAL_FREE_SPACE);
-	//printf("Largest contiguous free space %d\n");
+	printf("Total bytes allocated for memory: %d\nTotal free space: %d\n", TOTAL_ALLOCATION,TOTAL_FREE_SPACE);	
+	printf("Largest contiguous free space: %d\n", largest_contiguous_free_space_size);
 }
 
 void* allocBestFit(int size){
